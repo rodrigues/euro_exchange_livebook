@@ -1,0 +1,129 @@
+<!-- livebook:{"app_settings":{"auto_shutdown_ms":5000,"multi_session":true,"output_type":"rich","show_existing_sessions":false,"slug":"euro"}} -->
+
+# 💶 Euro Exchange Rates History
+
+```elixir
+Mix.install([
+  {:briefly, "~> 0.4.1"},
+  {:req, "~> 0.3.10"},
+  {:kino_explorer, "~> 0.1.8"},
+  {:kino_vega_lite, "~> 0.1.9"}
+])
+```
+
+## Fetch historic exchange data from European Central Bank
+
+[![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgist.githubusercontent.com%2Frodrigues%2Fffa0ef8c997f1670aeaade1eceb1dc3c%2Fraw%2F4842743365173db74ee6c17066ac5b5242388544%2Feuro-exchange.livemd)
+
+```elixir
+alias Explorer.DataFrame, as: D
+alias Explorer.Series, as: S
+alias VegaLite, as: V
+
+path = Briefly.create!()
+
+"https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
+|> Req.get!()
+|> then(&(&1.body |> hd() |> elem(1)))
+|> then(&File.write!(path, &1))
+
+history = D.from_csv!(path, header: true, parse_dates: true, null_character: "N/A")
+```
+
+```elixir
+currencies =
+  history
+  |> D.dtypes()
+  |> Map.keys()
+  |> Kernel.--(["Date"])
+  |> Enum.sort()
+  |> Enum.map(&{&1, &1})
+
+currency =
+  "Currency"
+  |> Kino.Input.select(currencies, default: "USD")
+  |> Kino.render()
+  |> Kino.Input.read()
+
+from_to =
+  "Exchange"
+  |> Kino.Input.select([
+    {"from", "Currency to EUR"},
+    {"to", "EUR to Currency"}
+  ])
+  |> Kino.render()
+  |> Kino.Input.read()
+
+time_filter =
+  "Show"
+  |> Kino.Input.select(
+    [
+      {"all", "All"},
+      {"1825", "Last 5 years"},
+      {"730", "Last 2 years"},
+      {"365", "Last 1 year"},
+      {"ytd", "Year to date"},
+      {"90", "Last 90 days"},
+      {"60", "Last 60 days"},
+      {"30", "Last 30 days"},
+      {"15", "Last 15 days"},
+      {"7", "Last 7 days"}
+    ],
+    default: "all"
+  )
+  |> Kino.render()
+  |> Kino.Input.read()
+
+df =
+  history
+  |> D.select(["Date", currency])
+  |> D.rename(%{currency => "to"})
+  |> D.mutate_with(fn entry ->
+    case entry["to"] do
+      nil -> []
+      to -> [from: S.divide(1, to)]
+    end
+  end)
+  |> D.select(["Date", from_to])
+  |> D.rename(%{"Date" => "date", from_to => "value"})
+
+df =
+  case time_filter do
+    "all" ->
+      df
+
+    "ytd" ->
+      cut = %Date{Date.utc_today() | month: 1, day: 1}
+      D.filter_with(df, &S.greater(&1["date"], cut))
+
+    days ->
+      cut = Date.add(Date.utc_today(), -1 * String.to_integer(days))
+      D.filter_with(df, &S.greater(&1["date"], cut))
+  end
+
+:ok
+```
+
+```elixir
+label =
+  case from_to do
+    "from" -> "1 #{currency} to EUR"
+    "to" -> "1 EUR to #{currency}"
+  end
+
+V.new(
+  width: 750,
+  height: 400,
+  title: ["date", label]
+)
+|> V.data_from_values(df, only: ["date", "value"])
+|> V.mark(:point, tooltip: true)
+|> V.encode_field(:x, "date",
+  title: "date",
+  type: :temporal
+)
+|> V.encode_field(:y, "value",
+  title: label,
+  type: :quantitative
+)
+```
