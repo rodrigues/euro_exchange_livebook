@@ -13,7 +13,7 @@ Mix.install([
 
 ## Fetch historic exchange data from European Central Bank
 
-[![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgist.githubusercontent.com%2Frodrigues%2Fffa0ef8c997f1670aeaade1eceb1dc3c%2Fraw%2F4842743365173db74ee6c17066ac5b5242388544%2Feuro-exchange.livemd)
+[![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https://raw.githubusercontent.com/rodrigues/euro_exchange_livebook/main/euro_exchange.livemd?token=GHSAT0AAAAAAB2K7CLIV2TQ6RQFCJNQIJLQZHESANQ)
 
 ```elixir
 alias Explorer.DataFrame, as: D
